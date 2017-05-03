@@ -27,11 +27,10 @@
 #define PULSES_REVOLUTION   1920 // from http://www.robotshop.com/en/micro-6v-160rpm-1201-dc-geared-motor-encoder.html
 #define WHEEL_CIRCUMFERENCE 20.42 // in cm, based on 65mm wheel diameter
 #define TARGET_DISTANCE     60.96 //2 ft in cm  //100  // 
-#define KP                  2
-#define KI                  0.4
+#define KP                  1
+#define KI                  0.1
 #define ETHRESHOLD          0.5
-#define NUM_TARGETS         4
-#define DEBUG
+#define NUM_TARGETS         2
 
 volatile long EncCountA = 0;
 volatile int EncStateA1 = LOW;
@@ -52,7 +51,7 @@ volatile long ErrorTotalB = 0;
 
 char byteIn = 'n';
 int targetDistanceA[NUM_TARGETS], targetDistanceB[NUM_TARGETS];
-int nextTargetIdx = 0, currentTargetIdx = -1;
+int nextTargetIdx = -1, currentTargetIdx = 0;
 
 void setup()
 {
@@ -96,12 +95,11 @@ void loop()
   if (Serial.available())
   {
     byteIn = Serial.read();
-    Serial.print(byteIn);
     if (byteIn == 't' || byteIn == 'T') // t for target
     {
+      nextTargetIdx++;
       targetDistanceA[nextTargetIdx % NUM_TARGETS] = Serial.parseInt();
       targetDistanceB[nextTargetIdx % NUM_TARGETS] = Serial.parseInt();
-      nextTargetIdx++;
     }
   }
 }
@@ -109,7 +107,7 @@ void loop()
 void ControlThread(){
   NewTime = micros();
 
-  if (currentTargetIdx >= 0)
+  if (currentTargetIdx == nextTargetIdx)
   {
     float errorA = targetDistanceA[currentTargetIdx % NUM_TARGETS] - (((float)EncCountA / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE); // cm
     float errorB = targetDistanceB[currentTargetIdx % NUM_TARGETS] - (((float)EncCountB / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE); // cm
@@ -172,9 +170,9 @@ void ControlThread(){
     {
       EncCountA = 0;
       EncCountB = 0;
+      halt();
       currentTargetIdx++;
-      Serial.print("Current Target:\t");
-      Serial.println(currentTargetIdx);
+      Serial.print('y');
     }
   }
 }
