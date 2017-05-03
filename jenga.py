@@ -1,8 +1,10 @@
 from serial import *
 from picamera import *
+from time import sleep
 
 # all measurements in cm, and estimates for now - should measure/calibrate/confirm later
 gripper_length = 10
+gripper_depth = 5
 robot_length = 25
 block_length = 7.5
 max, mid = 150, 75
@@ -39,7 +41,10 @@ play_poses = [(mid, mid - total_offset, 90), (mid - total_offset, mid, 0)] # add
 
 
 # setup
-ser = Serial("/dev/ttyACM0/", 9600)
+ser = Serial('/dev/ttyACM1', 9600)
+print "Starting up serial connection..."
+sleep(5)
+print "Done."
 camera = PiCamera()
 
 
@@ -59,13 +64,21 @@ can also use IMU for correcting
 def turnToHeading(current, target):
 	r = turn_distance * (target - current) / 360
 	l = -1 * r
-	ser.write(b't ' + str(r) + b' ' + str(l))
+	command = b't ' + str(int(round(r))) + b' ' + str(int(round(l)))
+	print command
+	ser.write(command)
+	response = ser.read()
+	print response
 
-def driveStraight(distance):
-	ser.write(b't ' + str(distance) + b' ' + str(distance))
+def driveStraight(d):
+	command = b't ' + str(int(round(d))) + b' ' + str(int(round(d)))
+	print command
+	ser.write(command)
+	response = ser.read()
+	print response
 
 while True:
-''' when turn signal is on  - check for this '''	
+	''' when turn signal is on  - check for this '''	
 	tx, ty, th = play_poses[pose] # t for target
 	cx, cy, ch = current # c for current
 	
@@ -96,9 +109,9 @@ while True:
 	# todo: do Hough transform and check for straight lines
 	
 	# for now, just show us what camera sees for debugging purposes
-	camera.start_preview()
-	sleep(5)
-	camera.stop_preview()
+	# camera.start_preview()
+	# sleep(5)
+	# camera.stop_preview()
 	
 	
 	''' send commands to microcontroller to position gripper with stepper motor '''
