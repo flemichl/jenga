@@ -77,7 +77,9 @@ def driveStraight(d):
 	response = ser.read()
 	print response
 
-while True:
+num_turns = 0
+
+while num_turns < 1:
 	''' when turn signal is on  - check for this '''	
 	tx, ty, th = play_poses[pose] # t for target
 	cx, cy, ch = current # c for current
@@ -162,6 +164,6 @@ while True:
 	
 	driveStraight(home[0] - tx) # reverse back to home
 	current = home # todo: verify with IMU and loop until true
-
+	num_turns = num_turns + 1
 
 ser.close()

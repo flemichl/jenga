@@ -29,11 +29,11 @@ def capture_contours():
 	thresh = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 11, 2)
 	clist, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 	for (i, contour) in enumerate(clist):
-		if cv2.matchShapes(contour, clist_sample[4], 1, 0) < 0.01:
+		if cv2.matchShapes(contour, clist_sample[4], 1, 0) < 0.05:
 			cv2.drawContours(img, clist, i, (0, 255, 0), 3)
 
 ''' find comparison contour from sample logo image '''
-img = cv2.imread('/home/pi/Documents/picam/logo2.jpg', 0)
+img = cv2.imread('/home/pi/Documents/jenga/jenga/camera/logo2.jpg', 0)
 blur = cv2.GaussianBlur(img, (5, 5), 0)
 ret, thresh = cv2.threshold(blur, 100, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)
 clist_sample, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
