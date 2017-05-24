@@ -3,7 +3,7 @@ from rrb3 import *
 from time import sleep
 
 class Gripper:
-	open_dc = 30
+	open_dc = 15
 	close_dc = 50
 
 	def __init__(self):

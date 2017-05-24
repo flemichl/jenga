@@ -23,8 +23,8 @@ class Drive:
 				print "No drive system connected on either port."
 					
 	
-	def turnToHeading(self,  target):
-		l = turn_distance * (target - self.imu.getHeading()) / 360
+	def turnToHeading(self,  angle):
+		l = turn_distance * angle / 360
 		r = -1 * l
 		command = b't ' + str(int(round(r*k))) + b' ' + str(int(round(l*k)))
 		print command
