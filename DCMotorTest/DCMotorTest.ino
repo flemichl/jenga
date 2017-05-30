@@ -1,6 +1,7 @@
 #include <PWMServo.h>
 #include <TimerOne.h>
 #include <Encoder.h>
+#include <IRremote.h>
 
 // NOTE: Teensy has library for encoders.  Will just use that.
 // NOTE: A is LEFT, B is RIGHT
@@ -14,7 +15,7 @@
 #define IN4 3
 #define ENB 22
 
-#define ENCODERL1   5
+#define ENCODERL1   8
 #define ENCODERL2   4
 #define ENCODERR1   6
 #define ENCODERR2   7
@@ -42,10 +43,9 @@
 #define ETHRESHOLD          5
 #define NUM_TARGETS         2
 
-#define DEBUG
+#define DEBUG_MOTOR
 //#define SERVO_ATTCHED
 //#define PREDEF
-
 
 volatile int gripper_pos = 0;
 
@@ -72,7 +72,16 @@ volatile float DerrorDtR = 0;
 volatile float prev_errorL = 0;
 volatile float prev_errorR = 0;
 
-
+// IR Receiver and Transmitter Stuff
+const int RECV_PIN = 9;
+unsigned long repeatValue = 4294967295; //NEC repeat value
+unsigned long startValue = 16738455; // NEC 1 value
+unsigned long okValue = 16712445; // NEC OK value
+unsigned long endValue = 16756815; // NEC 3 value
+unsigned long turn_timer = 0; // use for timeout purposes
+unsigned long stage1_timelimit = 10 * 1000; // max length for listening for ok
+int currentState = 0;  //0 = Not Our Turn, 1 = Starting Turn, 2 = Waiting for Turn end;
+int LEDpin = 13;
 
 char byteIn = 'n';
 int targetDistanceL[NUM_TARGETS], targetDistanceR[NUM_TARGETS];
@@ -81,7 +90,15 @@ int nextTargetIdx = -1, currentTargetIdx = 0;
 // Setup Encoders
 Encoder LeftWheelEncoder(ENCODERL1, ENCODERL2);
 Encoder RightWheelEncoder(ENCODERR1, ENCODERR2);
+
+// Setup gripper
 PWMServo gripper;
+
+// Setup IR Receiver and Transmitter
+IRsend irsend; // has to be on pin 5 of teensy!
+IRrecv irrecv(RECV_PIN);
+decode_results results;
+
 
 void setup()
 {
@@ -103,7 +120,7 @@ void setup()
 #endif
 
 
-#ifdef DEBUG
+#ifdef DEBUG_MOTOR
   Serial.print("Initialize Control Loop Frequency: ");
   Serial.println(LoopTime * 1000.0);
 #endif
@@ -124,6 +141,8 @@ void setup()
 
   nextTargetIdx = 0;
 #endif
+
+  setup_IR();
 }
 
 void loop()
@@ -133,7 +152,8 @@ void loop()
 
 void ControlThread() {
   NewTime = micros();
-
+  TurnMonitor();
+  
 #ifndef PREDEF
   // read serial to check if message has been sent
   if (Serial.available())
@@ -141,8 +161,6 @@ void ControlThread() {
     SerialRead();
   }
 #endif
-
-
 
   // if message has been sent, start moving robot to location
   if (currentTargetIdx == nextTargetIdx)
@@ -165,7 +183,7 @@ void ControlThread() {
     DerrorDtL = (errorL - prev_errorL) / dt;
     DerrorDtR = (errorR - prev_errorR) / dt;
 
-#ifdef DEBUG
+#ifdef DEBUG_MOTOR
     Serial.print("Error L: ");
     Serial.println(errorL);
     Serial.print("Error R: ");
@@ -209,7 +227,7 @@ void ControlThread() {
     prev_errorR = errorR;
 
 
-#ifdef DEBUG
+#ifdef DEBUG_MOTOR
     Serial.print("Left Command Signal: ");
     Serial.println(speed_percentL);
     Serial.print("Right Command Signal: ");
@@ -311,11 +329,7 @@ void SerialRead() {
     OpenGripper();
   }
 }
-
-//void mapSpeed(int val) {
-//
-//}
-
+ 
 void CloseGripper() {
   while (gripper_pos <= 180) {
     gripper.write(gripper_pos);
@@ -331,4 +345,98 @@ void OpenGripper() {
   gripper.write(0);
   Serial.println("Opening Gripper");
   gripper_pos = 0;
+}
+
+// setup stuff for IR Receiver and Transmitter
+void setup_IR() {
+  irrecv.enableIRIn(); // Start the receiver
+  pinMode(LEDpin, OUTPUT);
+  irrecv.blink13(true);
+  Serial.println("Waiting for Turn Start Signal");
+}
+
+// monitors status to determine when to send message on serial
+void TurnMonitor() { 
+  if (currentState == 0) { // not our turn waiting for go signal
+    int resp = robot_listen(startValue);
+    if (resp == 1) {
+      currentState = 1; // start turn
+      Serial.println("Starting Turn");
+    }
+  }
+  else if (currentState == 1) { // start turn message received, send ok
+    robot_transmit(okValue);
+    Serial.println("Ok message sent");
+    if (Serial.available() > 0){
+      char incomingByte = Serial.read();
+      Serial.print("Serial Value Received: "); Serial.println(incomingByte);
+      if (incomingByte == 'e' || incomingByte == 'E') {
+        currentState = 2; // turn is running
+      }
+    }
+    turn_timer = millis();
+  }
+  else if (currentState == 2) {
+    // goes back to just listening.
+    // send signal
+    unsigned long time_start = millis();
+    unsigned long wait_time = 100;
+    Serial.println("Sending end turn signal");
+    robot_transmit(endValue);
+    // listen for ok
+    time_start = millis();
+    Serial.println("Listening for OK signal");
+    int resp2;
+    while (abs(millis() - time_start) < 10*wait_time && currentState == 2) {
+      resp2 = robot_listen(okValue);
+      if (resp2 == 1) {
+        currentState = 0; // turn over waiting for next turn signal
+        Serial.println("Received Ok");
+        Serial.println("Waiting for next turn start signal");
+      }
+    }
+    if (timeout_check(stage1_timelimit) == 1) {
+      currentState = 0;
+      Serial.println("Timeout.  Listening for next turn signal.");
+    }
+  }
+}
+
+// listen for message from base station
+int robot_listen(unsigned long val) {
+  if (irrecv.decode(&results)) {
+    unsigned long rec_val = results.value;
+    irrecv.resume(); // Receive the next value
+    Serial.print("Message Received: "); Serial.println(rec_val);
+    if (rec_val == val) {
+      return 1; // got what we were looking for
+    }
+    else {
+      return 0; // got something else
+    }
+  }
+  return 0;
+}
+
+// transmit message from robot to base station
+void robot_transmit(unsigned long val) {
+  Serial.println("Sending Messages");
+  digitalWrite(LEDpin, HIGH);
+  for (int i = 0; i < 10; i++) { // send 10 messages
+    irsend.sendNEC(val, 32);
+    delay(200);
+  }
+  digitalWrite(LEDpin, LOW);
+  delay(300);
+  irrecv.enableIRIn();      //Restart receiver
+}
+
+// checks if timeout time has been exceeded
+int timeout_check(unsigned long timelimit) {
+  if (abs(millis() - turn_timer) < timelimit) {
+    return 0;
+  }
+  else {
+    return 1;
+  }
 }
