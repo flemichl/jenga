@@ -4,6 +4,7 @@ from time import sleep
 from gripper import *
 from drive import *
 from campan import *
+from turnsignal import *
 
 def stepForward():
 	drive.driveStraight(30)
@@ -42,7 +43,8 @@ def camDown():
 	cam.down()
 
 def done():
-	print "Not enabled yet!"
+	print "Ending turn."
+	signal.turnDone()
 
 options = { 'i' : stepForward,
 			',' : stepBack,
@@ -66,6 +68,7 @@ if __name__ == '__main__':
 		drive = Drive()
 		grip = Gripper()
 		cam = CamPan()
+		signal = TurnSignal()
 
 		while True:
 			command = raw_input()
