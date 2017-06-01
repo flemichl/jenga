@@ -28,7 +28,7 @@
 #define SPEED_MAX 95
 // motors have different minimum speeds.
 // may also want to do this for how it is mapped?
-#define PWM_MIN_L   50
+#define PWM_MIN_L   70
 #define PWM_MAX_L   250
 #define PWM_MIN_R   80
 #define PWM_MAX_R   250
@@ -45,7 +45,7 @@
 #define ETHRESHOLD          5
 #define NUM_TARGETS         2
 
-//#define DEBUG_MOTOR
+#define DEBUG_MOTOR
 #define DEBUG_IR
 //#define SERVO_ATTCHED
 //#define PREDEF
@@ -129,92 +129,45 @@ void setup()
 #endif
   Timer1.initialize(LoopTime * 1000.0);
   Timer1.attachInterrupt(ControlThread);
-#ifdef PREDEF
-  targetDistanceL[0] = TARGET_DISTANCE;
-  targetDistanceR[0] = TARGET_DISTANCE;
-
-  targetDistanceL[1] = TARGET_DISTANCE;
-  targetDistanceR[1] = -1 * TARGET_DISTANCE;
-
-  targetDistanceL[2] = TARGET_DISTANCE;
-  targetDistanceR[2] = TARGET_DISTANCE;
-
-  targetDistanceL[3] = -1 * TARGET_DISTANCE;
-  targetDistanceR[3] = TARGET_DISTANCE;
-
-  nextTargetIdx = 0;
-#endif
-
+  
   setup_IR();
 }
 
 void loop()
 {
-  // nothing here, everything done by the Control Thread
-}
-
-void ControlThread() {
-  NewTime = micros();
-  TurnMonitor();
+  float speed_percentL = 0;
+  float speed_percentR = 0;
   
-#ifndef PREDEF
-  // read serial to check if message has been sent
   if (Serial.available())
   {
-    SerialRead();
-  }
-#endif
-
-  // if message has been sent, start moving robot to location
-  if (currentTargetIdx == nextTargetIdx)
-  {
-    // Print the targets for both wheels
-    //   Serial.println(targetDistanceL[currentTargetIdx % NUM_TARGETS]);
-    //   Serial.println(targetDistanceR[currentTargetIdx % NUM_TARGETS]);
+    byteIn = Serial.read();
+    if (byteIn == 'i') // i for forward
+    {
+      speed_percentL = 20;
+      speed_percentR = 20;
+    }
+    else if (byteIn == ',') {
+      speed_percentL = -20;
+      speed_percentR = -20;
+    }
+    else if (byteIn == 'j') {
+      speed_percentL = -20;
+      speed_percentR = 20;
+    }
+    else if (byteIn == 'l') {
+      speed_percentL = 20;
+      speed_percentR = -20;
+    }
+    Serial.println("got something");
 
     // get error for each wheel from desired end point
     int EncCountL = LeftWheelEncoder.read();
     int EncCountR = RightWheelEncoder.read();
-    float errorL = targetDistanceL[currentTargetIdx % NUM_TARGETS] - (((float)(EncCountL - EncCountL_Start) / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE); // cm
-    float errorR = targetDistanceR[currentTargetIdx % NUM_TARGETS] - (((float)(EncCountR - EncCountR_Start) / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE); // cm
-
-    // integral error
-    ErrorTotalL = ErrorTotalL + (dt * errorL);
-    ErrorTotalR = ErrorTotalR + (dt * errorR);
-
-    // derivative error
-    DerrorDtL = (errorL - prev_errorL) / dt;
-    DerrorDtR = (errorR - prev_errorR) / dt;
-
-#ifdef DEBUG_MOTOR
-    Serial.print("Error L: ");
-    Serial.println(errorL);
-    Serial.print("Error R: ");
-    Serial.println(errorR);
-    Serial.print("Total Error L: ");
-    Serial.println(ErrorTotalL);
-    Serial.print("Total Error R: ");
-    Serial.println(ErrorTotalR);
-    Serial.print("Encoder L: ");
-    Serial.println(EncCountL);
-    Serial.print("Encoder R: ");
-    Serial.println(EncCountR);
-    Serial.print("Target L: ");
-    Serial.println(targetDistanceL[currentTargetIdx % NUM_TARGETS]);
-    Serial.print("Target R: ");
-    Serial.println(targetDistanceR[currentTargetIdx % NUM_TARGETS]);
-#endif
 
     float EncDifference = ((float)(EncCountL - EncCountR) / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE;
-    float speed_percentL = KP * errorL + KI * ErrorTotalL + KD * DerrorDtL;
-    float speed_percentR = KP * errorR + KI * ErrorTotalR + KD * DerrorDtR;
-
-    // clamp before hand also to ensure there is a differene in speeds
-    //    speed_percentL = max(SPEED_MIN, min(SPEED_MAX, speed_percentL));
-    //    speed_percentR = max(SPEED_MIN, min(SPEED_MAX, speed_percentR));
-
+    
     // correct for difference between encoders if we are driving straight
-    if (targetDistanceL[currentTargetIdx % NUM_TARGETS] == targetDistanceR[currentTargetIdx % NUM_TARGETS])
+    if (speed_percentL == speed_percentR)
     {
       if (EncDifference > 0)
         speed_percentL -= KP * abs(EncDifference);
@@ -223,57 +176,43 @@ void ControlThread() {
         speed_percentL += KP * abs(EncDifference);
       speed_percentR -= KP * abs(EncDifference);
     }
-    //    float state1 = (float)EncCountL / PULSES_REVOLUTION;
-    float state_d = 0.5 * (((float)EncCountL / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE) + 0.5 * (((float)EncCountR / PULSES_REVOLUTION) * WHEEL_CIRCUMFERENCE);
-    float state_h = (float)(atan2(EncCountL, EncCountR) * 90.0 / 3.14);
-    prev_errorL = errorL;
-    prev_errorR = errorR;
-
-
 #ifdef DEBUG_MOTOR
     Serial.print("Left Command Signal: ");
     Serial.println(speed_percentL);
     Serial.print("Right Command Signal: ");
     Serial.println(speed_percentR);
-    Serial.print("Current Distance Travelled: ");
-    Serial.println(state_d);
-    Serial.print("Current Heading: ");
-    Serial.println(state_h);
 #endif
 
-    if (speed_percentL > SPEED_MAX)
-      speed_percentL = SPEED_MAX;
-
-    if (speed_percentR > SPEED_MAX)
-      speed_percentR = SPEED_MAX;
-
-    // send motor command
-    if (errorL > 0) {
-      forwardL((int)speed_percentL);
+      if (speed_percentL > SPEED_MAX)
+        speed_percentL = SPEED_MAX;
+  
+      if (speed_percentR > SPEED_MAX)
+        speed_percentR = SPEED_MAX;
+  
+      // send motor command
+      if (speed_percentL > 0) {
+        forwardL((int)speed_percentL);
+      }
+      else {
+        backwardL((int)abs(speed_percentL));
+      }
+  
+      if (speed_percentR > 0) {
+        forwardR((int)speed_percentR);
+      }
+      else {
+        backwardR((int)abs(speed_percentR));
+      }
     }
-    else {
-      backwardL((int) - speed_percentL);
-    }
-
-    if (errorR > 0) {
-      forwardR((int)speed_percentR);
-    }
-    else {
-      backwardR((int) - speed_percentR);
-    }
-
-    if (abs(errorL) <= ETHRESHOLD && abs(errorR) <= ETHRESHOLD)
-    {
-      EncCountL_Start = EncCountL;
-      EncCountR_Start = EncCountR;
+    else{
       halt();
-      currentTargetIdx++;
-      Serial.println("Goal Reached");
-#ifdef PREDEF
-      nextTargetIdx++;
-#endif
     }
-  }
+    delay(50);
+}
+
+void ControlThread() {
+  NewTime = micros();
+  TurnMonitor();
 }
 
 void forwardL(int speed_percent) {
@@ -318,19 +257,7 @@ void halt() {
 }
 
 void SerialRead() {
-  byteIn = Serial.read();
-  if (byteIn == 't' || byteIn == 'T') // t for target
-  {
-    nextTargetIdx++;
-    targetDistanceL[nextTargetIdx % NUM_TARGETS] = Serial.parseInt();
-    targetDistanceR[nextTargetIdx % NUM_TARGETS] = Serial.parseInt();
-  }
-  else if (byteIn == 'c' || byteIn == 'C') {
-    CloseGripper();
-  }
-  else if (byteIn == 'o' || byteIn == 'O') {
-    OpenGripper();
-  }
+
 }
  
 void CloseGripper() {
