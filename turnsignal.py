@@ -3,8 +3,8 @@ import RPi.GPIO as gpio
 start_pin = 6
 end_pin = 12
 
-def timeToStart():
-	gpio.output(end_pin, GPIO.LOW)
+def timeToStart(data):
+	gpio.output(end_pin, gpio.LOW)
 	print "Your turn is starting!!!"
 
 class TurnSignal:
@@ -12,10 +12,10 @@ class TurnSignal:
 		gpio.setmode(gpio.BCM)
 		gpio.setup(start_pin, gpio.IN)
 		gpio.setup(end_pin, gpio.OUT)
-		gpio.add_event_detect(start_pin, GPIO.RISING, callback=timeToStart)
+		gpio.add_event_detect(start_pin, gpio.RISING, callback=timeToStart)
 
 	def turnDone(self):
-		gpio.output(end_pin, GPIO.HIGH)
+		gpio.output(end_pin, gpio.HIGH)
 		
 	
 
