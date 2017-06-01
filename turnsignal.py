@@ -6,6 +6,7 @@ end_pin = 12
 def timeToStart(data):
 	gpio.output(end_pin, gpio.LOW)
 	print "Your turn is starting!!!"
+	GPIO.remove_event_detect(channel) #remove interrupt detection
 
 class TurnSignal:
 	def __init__(self):
@@ -16,6 +17,7 @@ class TurnSignal:
 
 	def turnDone(self):
 		gpio.output(end_pin, gpio.HIGH)
+		gpio.add_event_detect(start_pin, gpio.RISING, callback=timeToStart) #add event detection back
 		
 	
 
