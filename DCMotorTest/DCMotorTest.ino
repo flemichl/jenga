@@ -338,6 +338,10 @@ void TurnMonitor() {
       currentState = 1; // start turn
       // indicate to RPi that turn is starting
       digitalWrite(TURNSTART, HIGH);
+      robot_transmit(okValue);  // transmit ok message once
+      #ifdef DEBUG_IR
+          Serial.println("Ok message sent");
+      #endif
 #ifdef DEBUG_IR
       Serial.println("Starting Turn");
 #endif
@@ -345,10 +349,6 @@ void TurnMonitor() {
   }
   else if (currentState == 1) { // start turn message received, send ok
     // this is the state while turn is running
-    robot_transmit(okValue);
-#ifdef DEBUG_IR
-    Serial.println("Ok message sent");
-#endif
     // RPi will set this pin when turn is over
     if (digitalRead(TURNEND) == HIGH){
         currentState = 2;
