@@ -23,7 +23,7 @@ class Drive:
 				print "No drive system connected on either port."
 					
 	
-	def turnToHeading(self,  angle):
+	'''def turnToHeading(self,  angle):
 		l = turn_distance * angle / 360
 		r = -1 * l
 		command = b't ' + str(int(round(r*k))) + b' ' + str(int(round(l*k)))
@@ -35,7 +35,10 @@ class Drive:
 		command = b't ' + str(int(round(d*k))) + b' ' + str(int(round(d*k)))
 		print command
 		self.ser.write(command)
-		print self.ser.read()
+		print self.ser.read()'''
+
+	def sendCommand(self, command):
+		self.ser.write(command)
 		
 	def close(self):
 		self.ser.close()

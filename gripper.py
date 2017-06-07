@@ -3,8 +3,8 @@ from rrb3 import *
 from time import sleep
 
 class Gripper:
-	open_dc = 15
-	close_dc = 50
+	open_dc = 0
+	close_dc = 30
 
 	def __init__(self):
 		gpio.setmode(gpio.BCM)
@@ -30,7 +30,13 @@ class Gripper:
 		self.servo.stop()
 
 	def downLevel(self):
-		self.stepper.step_forward(0.02, 150)
+		self.stepper.step_forward(0.02, 120)
 
 	def upLevel(self):
-		self.stepper.step_reverse(0.02, 150) 
+		self.stepper.step_reverse(0.02, 120) 
+
+	def downNudge(self):
+		self.stepper.step_forward(0.02, 10)
+
+	def upNudge(self):
+		self.stepper.step_reverse(0.02, 10) 
